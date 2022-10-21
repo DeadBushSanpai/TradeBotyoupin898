@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text.Json.Nodes;
 using Newtonsoft.Json;
 using RestSharp;
-using static TradeBotyoupin898.ToDo;
+using static Legacy.ToDoLegacy;
 
-namespace TradeBotyoupin898
+using TradeBotyoupin898;
+
+namespace Legacy
 {
-    internal class YouPinAPI
+    internal class YouPinAPILegacy
     {
         private Manifest manifest;
         private string authkey;
@@ -15,18 +16,18 @@ namespace TradeBotyoupin898
 
         private const int time_out = 10000;
 
-        public YouPinAPI()
+        public YouPinAPILegacy()
         {
             manifest = Manifest.GetManifest();
             authkey = manifest.YouPinAPI;
         }
 
-        public List<TodoDataItem> GetToDoList()
+        public List<TodoDataItemLegacy> GetToDoList()
         {
             try
             {
-                string responseStr = httpResponse($"{endpoint_url}youpin/bff/trade/todo/v1/orderTodo/list");
-                ToDo todo = JsonConvert.DeserializeObject<ToDo>(responseStr);
+                string responseStr = httpResponse($"{endpoint_url}user/Account/ToDoList");
+                ToDoLegacy todo = JsonConvert.DeserializeObject<ToDoLegacy>(responseStr);
 
                 if (todo.Code != 0 || todo == null) throw new APIErrorException();
                 return todo.Data;
@@ -44,7 +45,7 @@ namespace TradeBotyoupin898
             }
         }
 
-        public OrderData GetLeaseReturnOrder(string orderNo)
+        public OrderDataLegacy GetLeaseReturnOrder(string orderNo)
         {
             try
             {
@@ -68,17 +69,60 @@ namespace TradeBotyoupin898
             }
         }
 
-        public OrderData GetOrder(string orderNo)
+        public OrderDataLegacy GetLeaseReturnOrderLegacy(string orderNo)
         {
             try
             {
-                string responseStr = httpResponse($"{endpoint_url}youpin/bff/trade/v1/order/query/detail", $"{{\"orderNo\": {orderNo}}}");
-                Order order = JsonConvert.DeserializeObject<Order>(responseStr);
+                string responseStr = httpResponse($"{endpoint_url}v2/commodity/Lease/GetDetail?OrderNo={orderNo}");
+                LeaseOrderLegacy order = JsonConvert.DeserializeObject<LeaseOrderLegacy>(responseStr);
 
-                if (order.Code == 85100 && order.Msg == "系统繁忙,请稍后再试")
-                {
-                    Console.WriteLine($"{DateTime.UtcNow}\t Standard\t你被制裁了:{order.Msg}");
-                }
+                if (order.Code != 0 || order == null) throw new APIErrorException();
+
+                return GetOrderLegacy(order.Data.ReturnOrderNo);
+            }
+            catch (APIErrorException)
+            {
+                Console.WriteLine("悠悠API寄了");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("出现了未预料的错误");
+                Console.WriteLine(ex.ToString());
+                return null;
+            }
+        }
+
+        public OrderDataLegacy GetOrder(string orderNo)
+        {
+            try
+            {
+                string responseStr = httpResponse($"{endpoint_url}trade/Order/OrderPagedDetail?OrderNo={orderNo}");
+                OrderLegacy order = JsonConvert.DeserializeObject<OrderLegacy>(responseStr);
+
+                if (order.Code != 0 || order == null) throw new APIErrorException();
+
+                return order.Data;
+            }
+            catch (APIErrorException)
+            {
+                Console.WriteLine("悠悠API寄了");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("出现了未预料的错误");
+                Console.WriteLine(ex.ToString());
+                return null;
+            }
+        }
+
+        public OrderDataLegacy GetOrderLegacy(string orderNo)
+        {
+            try
+            {
+                string responseStr = httpResponse($"{endpoint_url}trade/Order/OrderPagedDetail?OrderNo={orderNo}");
+                OrderLegacy order = JsonConvert.DeserializeObject<OrderLegacy>(responseStr);
 
                 if (order.Code != 0 || order == null) throw new APIErrorException();
 
@@ -98,23 +142,16 @@ namespace TradeBotyoupin898
         }
 
 
-        private string httpResponse(string url) => httpResponse(url, "{}");
-
-        private string httpResponse(string url, string content)
+        private string httpResponse(string url)
         {
             RestClientOptions clientOptions = new RestClientOptions(url)
             {
                 MaxTimeout = time_out
             };
             var client = new RestClient(clientOptions);
-            var request = new RestRequest
-            {
-                Method = Method.Post
-            };
+            var request = new RestRequest();
             request.AddHeader("Authorization", $"Bearer {authkey}");
             request.AddHeader("apptype", "3");
-            request.AddHeader("Content-Type", "application/json");
-            request.AddBody(content);
             RestResponse response = client.Execute(request);
             return response.Content;
         }
